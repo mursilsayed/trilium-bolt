@@ -1,6 +1,6 @@
 # trilium-bolt
 
-Lightning-fast MCP server for [Trilium Notes](https://github.com/zadam/trilium). Connect Claude to your personal knowledge base with minimal setup.
+Lightning-fast MCP server for [Trilium Notes](https://github.com/zadam/trilium) — search, create, update, and organize your notes with AI. Connect Claude to your personal knowledge base with minimal setup.
 
 ## Quick Start
 
@@ -29,7 +29,6 @@ Add to your `~/.claude.json`:
 > **Not using Claude Code?** See setup instructions for [Cursor, Windsurf, VS Code, Cline, and other MCP clients](docs/mcp-clients.md)
 >
 > **Running Trilium in Docker?** See the [Docker Setup Guide](docs/docker.md)
-
 
 ### 3. Use it
 
@@ -86,6 +85,10 @@ This is the simplest possible architecture - just a CLI that your MCP client inv
 **Search notes:**
 ```
 Search my Trilium notes for anything about "machine learning"
+Find all my notes tagged with "recipe"
+Show me notes that are tagged both "recipe" and "vegetarian"
+Find all notes where the priority label is set to "high" and status is "active"
+Find all notes whose titles start with "Meeting"
 ```
 
 **Create a note:**

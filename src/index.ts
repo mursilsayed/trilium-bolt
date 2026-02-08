@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * trilium-bolt - Lightning-fast MCP server for Trilium Notes
+ * trilium-bolt - Lightning-fast MCP server for Trilium Notes — search, create, update, and organize your notes with AI
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';

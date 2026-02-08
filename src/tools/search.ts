@@ -9,7 +9,7 @@ export const searchNotesSchema = z.object({
   query: z
     .string()
     .describe(
-      'Search query using Trilium search syntax. Examples: "keyword", "#label", "#label=value", "note.title =* prefix"'
+      'Search query using Trilium search syntax. Examples: "keyword" (full-text search), "#label" (notes with a label), "#label=value" (label with specific value), "#tag=recipe" (notes tagged "recipe"), "#tag=recipe AND #tag=vegetarian" (notes with multiple tags), "note.title =* prefix" (title prefix match), "#priority AND #status=active" (combining label existence with label value)'
     ),
   limit: z
     .number()
