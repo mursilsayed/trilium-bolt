@@ -1,0 +1,42 @@
+{
+  "name": "trilium-bolt",
+  "version": "1.0.0",
+  "description": "Lightning-fast MCP server for Trilium Notes",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "trilium-bolt": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mursilsayed/trilium-bolt"
+  },
+  "keywords": [
+    "trilium",
+    "mcp",
+    "claude",
+    "notes",
+    "model-context-protocol"
+  ],
+  "author": "Mursil Sayed",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
