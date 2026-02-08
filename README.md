@@ -98,6 +98,33 @@ Create a note titled "Book Notes: Atomic Habits" with a summary of the key point
 Show me the structure of my "Projects" folder
 ```
 
+## Building from source
+
+```bash
+git clone https://github.com/mursilsayed/trilium-bolt.git
+cd trilium-bolt
+npm install
+npm run build
+```
+
+To use your local build instead of the published package, point your MCP client to the built output:
+
+```json
+{
+  "mcpServers": {
+    "trilium": {
+      "command": "node",
+      "args": ["/absolute/path/to/trilium-bolt/dist/index.js"],
+      "env": {
+        "TRILIUM_TOKEN": "your-token-here"
+      }
+    }
+  }
+}
+```
+
+For development, use `npm run dev` to rebuild on file changes.
+
 ## Requirements
 
 - Node.js 18+
