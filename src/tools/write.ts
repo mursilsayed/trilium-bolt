@@ -5,6 +5,25 @@
 import { z } from 'zod';
 import type { TriliumClient } from '../trilium-client.js';
 
+const attributeSchema = z.object({
+  type: z
+    .enum(['label', 'relation'])
+    .optional()
+    .default('label')
+    .describe('Type of attribute: "label" for key-value tags, "relation" for links to other notes (default: "label")'),
+  name: z.string().describe('Name of the attribute (e.g., "priority", "tag", "cssClass")'),
+  value: z
+    .string()
+    .optional()
+    .default('')
+    .describe('Value of the attribute. For labels this is the tag value, for relations this is the target noteId'),
+  isInheritable: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Whether the attribute is inherited by child notes (default: false)'),
+});
+
 export const createNoteSchema = z.object({
   parentNoteId: z
     .string()
@@ -22,6 +41,10 @@ export const createNoteSchema = z.object({
     .string()
     .optional()
     .describe('MIME type for code notes (e.g., "application/javascript")'),
+  attributes: z
+    .array(attributeSchema)
+    .optional()
+    .describe('Attributes (labels/relations) to attach to the note. Example: [{"name": "tag", "value": "recipe"}, {"name": "priority", "value": "high"}]'),
 });
 
 export type CreateNoteInput = z.infer<typeof createNoteSchema>;
@@ -38,13 +61,33 @@ export async function createNote(
     mime: input.mime,
   });
 
+  const noteId = result.note.noteId;
+  const createdAttributes = [];
+
+  if (input.attributes?.length) {
+    for (const attr of input.attributes) {
+      const created = await client.createAttribute(noteId, {
+        type: attr.type,
+        name: attr.name,
+        value: attr.value,
+        isInheritable: attr.isInheritable,
+      });
+      createdAttributes.push({
+        type: created.type,
+        name: created.name,
+        value: created.value,
+      });
+    }
+  }
+
   return JSON.stringify(
     {
       success: true,
-      noteId: result.note.noteId,
+      noteId,
       title: result.note.title,
       type: result.note.type,
       parentNoteId: input.parentNoteId,
+      attributes: createdAttributes,
     },
     null,
     2
@@ -55,6 +98,10 @@ export const updateNoteSchema = z.object({
   noteId: z.string().describe('ID of the note to update'),
   title: z.string().optional().describe('New title for the note'),
   content: z.string().optional().describe('New content for the note'),
+  attributes: z
+    .array(attributeSchema)
+    .optional()
+    .describe('Attributes to set on the note. If an attribute with the same type and name exists, its value will be updated; otherwise a new attribute is created.'),
 });
 
 export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
@@ -63,8 +110,8 @@ export async function updateNote(
   client: TriliumClient,
   input: UpdateNoteInput
 ): Promise<string> {
-  if (!input.title && !input.content) {
-    throw new Error('At least one of "title" or "content" must be provided');
+  if (!input.title && !input.content && !input.attributes?.length) {
+    throw new Error('At least one of "title", "content", or "attributes" must be provided');
   }
 
   const updates: string[] = [];
@@ -79,11 +126,41 @@ export async function updateNote(
     updates.push('content');
   }
 
+  const updatedAttributes = [];
+
+  if (input.attributes?.length) {
+    // Fetch existing attributes to check for updates vs creates
+    const note = await client.getNote(input.noteId);
+    const existingAttrs = note.attributes;
+
+    for (const attr of input.attributes) {
+      const existing = existingAttrs.find(
+        (a) => a.type === attr.type && a.name === attr.name
+      );
+
+      if (existing) {
+        await client.updateAttribute(existing.attributeId, attr.value);
+        updatedAttributes.push({ action: 'updated', type: attr.type, name: attr.name, value: attr.value });
+      } else {
+        await client.createAttribute(input.noteId, {
+          type: attr.type,
+          name: attr.name,
+          value: attr.value,
+          isInheritable: attr.isInheritable,
+        });
+        updatedAttributes.push({ action: 'created', type: attr.type, name: attr.name, value: attr.value });
+      }
+    }
+
+    updates.push('attributes');
+  }
+
   return JSON.stringify(
     {
       success: true,
       noteId: input.noteId,
       updated: updates,
+      attributes: updatedAttributes,
     },
     null,
     2

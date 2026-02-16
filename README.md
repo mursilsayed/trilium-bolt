@@ -69,8 +69,8 @@ This is the simplest possible architecture - just a CLI that your MCP client inv
 | `search_notes` | Full-text and attribute search |
 | `get_note` | Retrieve note content and metadata |
 | `get_note_tree` | Get children/hierarchy of a note |
-| `create_note` | Create a new note |
-| `update_note` | Update note title or content |
+| `create_note` | Create a new note with optional attributes (labels/relations) |
+| `update_note` | Update note title, content, or attributes |
 | `delete_note` | Delete a note |
 
 ## Configuration
@@ -94,6 +94,14 @@ Find all notes whose titles start with "Meeting"
 **Create a note:**
 ```
 Create a note titled "Book Notes: Atomic Habits" with a summary of the key points
+Create a note called "Pasta Carbonara" tagged with "recipe" and "italian"
+```
+
+**Create/update notes with attributes:**
+```
+Create a note "Sprint Planning" with labels priority=high and status=active
+Add a "completed" tag to my "Q4 Report" note
+Update the priority label on my "Bug Fix" note to "low"
 ```
 
 **Explore hierarchy:**
@@ -127,6 +135,19 @@ To use your local build instead of the published package, point your MCP client 
 ```
 
 For development, use `npm run dev` to rebuild on file changes.
+
+## Publishing to npm
+
+```bash
+npm run build
+npm publish
+```
+
+To publish a pre-release or dry-run first:
+
+```bash
+npm publish --dry-run
+```
 
 ## Requirements
 

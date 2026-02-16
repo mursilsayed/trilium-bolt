@@ -5,6 +5,8 @@
 import type {
   Note,
   NoteWithContent,
+  Attribute,
+  AttributeInput,
   SearchResult,
   CreateNoteParams,
   CreateNoteResponse,
@@ -180,6 +182,26 @@ export class TriliumClient {
     if (!response.ok) {
       throw new Error(`Failed to update note content: ${response.statusText}`);
     }
+  }
+
+  /**
+   * Create an attribute on a note
+   */
+  async createAttribute(noteId: string, attr: AttributeInput): Promise<Attribute> {
+    return this.request<Attribute>('POST', '/attributes', {
+      noteId,
+      type: attr.type,
+      name: attr.name,
+      value: attr.value,
+      isInheritable: attr.isInheritable ?? false,
+    });
+  }
+
+  /**
+   * Update an existing attribute
+   */
+  async updateAttribute(attributeId: string, value: string): Promise<Attribute> {
+    return this.request<Attribute>('PATCH', `/attributes/${attributeId}`, { value });
   }
 
   /**

@@ -49,6 +49,13 @@ export interface SearchResult {
   isProtected: boolean;
 }
 
+export interface AttributeInput {
+  type: 'label' | 'relation';
+  name: string;
+  value: string;
+  isInheritable?: boolean;
+}
+
 export interface CreateNoteParams {
   parentNoteId: string;
   title: string;
