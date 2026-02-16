@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createNote, updateNote } from '../write.js';
+import { createNote, updateNote, deleteAttribute } from '../write.js';
 import type { TriliumClient } from '../../trilium-client.js';
 
 function mockClient(overrides: Record<string, unknown> = {}) {
@@ -93,5 +93,38 @@ describe('updateNote', () => {
 
     const call = (client.updateNoteContent as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(call[1]).toBe(htmlContent);
+  });
+});
+
+describe('deleteAttribute', () => {
+  it('deletes a matching attribute successfully', async () => {
+    const client = mockClient({
+      getNote: vi.fn().mockResolvedValue({
+        attributes: [
+          { attributeId: 'attr1', type: 'label', name: 'priority', value: 'high' },
+        ],
+      }),
+      deleteAttribute: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const result = await deleteAttribute(client, {
+      noteId: 'note1',
+      attributeName: 'priority',
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.success).toBe(true);
+    expect(parsed.attributeId).toBe('attr1');
+    expect((client.deleteAttribute as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('attr1');
+  });
+
+  it('throws when attribute is not found', async () => {
+    const client = mockClient({
+      getNote: vi.fn().mockResolvedValue({ attributes: [] }),
+    });
+
+    await expect(
+      deleteAttribute(client, { noteId: 'note1', attributeName: 'missing' })
+    ).rejects.toThrow('not found');
   });
 });

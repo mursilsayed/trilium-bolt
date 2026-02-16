@@ -205,9 +205,30 @@ export class TriliumClient {
   }
 
   /**
+   * Delete an attribute
+   */
+  async deleteAttribute(attributeId: string): Promise<void> {
+    await this.request<void>('DELETE', `/attributes/${attributeId}`);
+  }
+
+  /**
    * Delete a note
    */
   async deleteNote(noteId: string): Promise<void> {
     await this.request<void>('DELETE', `/notes/${noteId}`);
+  }
+
+  /**
+   * Create a backup of the Trilium database
+   */
+  async createBackup(backupName: string): Promise<void> {
+    await this.request<void>('PUT', `/backup/${backupName}`);
+  }
+
+  /**
+   * Create a revision snapshot of a note's current content
+   */
+  async createRevision(noteId: string): Promise<void> {
+    await this.request<void>('POST', `/notes/${noteId}/revision`);
   }
 }

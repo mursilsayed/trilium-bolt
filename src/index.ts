@@ -24,12 +24,20 @@ import {
   updateNote,
   deleteNoteSchema,
   deleteNote,
+  deleteAttributeSchema,
+  deleteAttribute,
 } from './tools/write.js';
+import {
+  createBackupSchema,
+  createBackup,
+  createRevisionSchema,
+  createRevision,
+} from './tools/admin.js';
 
 // Create the MCP server
 const server = new McpServer({
   name: 'trilium-bolt',
-  version: '1.0.0',
+  version: '1.4.0',
 });
 
 // Initialize Trilium client (lazily, on first tool use)
@@ -125,6 +133,51 @@ server.tool(
   async (args) => {
     try {
       const result = await deleteNote(getClient(), deleteNoteSchema.parse(args));
+      return { content: [{ type: 'text', text: result }] };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  'delete_attribute',
+  'Delete an attribute (label or relation) from a note by name',
+  deleteAttributeSchema.shape,
+  async (args) => {
+    try {
+      const result = await deleteAttribute(getClient(), deleteAttributeSchema.parse(args));
+      return { content: [{ type: 'text', text: result }] };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  'create_backup',
+  'Create a backup of the Trilium database',
+  createBackupSchema.shape,
+  async (args) => {
+    try {
+      const result = await createBackup(getClient(), createBackupSchema.parse(args));
+      return { content: [{ type: 'text', text: result }] };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  'create_revision',
+  'Create a revision snapshot of a note\'s current content',
+  createRevisionSchema.shape,
+  async (args) => {
+    try {
+      const result = await createRevision(getClient(), createRevisionSchema.parse(args));
       return { content: [{ type: 'text', text: result }] };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';

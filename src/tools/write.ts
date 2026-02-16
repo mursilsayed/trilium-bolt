@@ -185,6 +185,50 @@ export async function updateNote(
   );
 }
 
+export const deleteAttributeSchema = z.object({
+  noteId: z.string().describe('ID of the note to remove the attribute from'),
+  attributeName: z.string().describe('Name of the attribute to delete'),
+  attributeType: z
+    .enum(['label', 'relation'])
+    .optional()
+    .default('label')
+    .describe('Type of attribute to delete (default: "label")'),
+});
+
+export type DeleteAttributeInput = z.infer<typeof deleteAttributeSchema>;
+
+export async function deleteAttribute(
+  client: TriliumClient,
+  input: DeleteAttributeInput
+): Promise<string> {
+  const note = await client.getNote(input.noteId);
+  const type = input.attributeType ?? 'label';
+  const attr = note.attributes.find(
+    (a) => a.type === type && a.name === input.attributeName
+  );
+
+  if (!attr) {
+    throw new Error(
+      `Attribute "${input.attributeName}" of type "${type}" not found on note ${input.noteId}`
+    );
+  }
+
+  await client.deleteAttribute(attr.attributeId);
+
+  return JSON.stringify(
+    {
+      success: true,
+      noteId: input.noteId,
+      attributeId: attr.attributeId,
+      type: attr.type,
+      name: attr.name,
+      message: 'Attribute deleted successfully',
+    },
+    null,
+    2
+  );
+}
+
 export const deleteNoteSchema = z.object({
   noteId: z.string().describe('ID of the note to delete'),
 });

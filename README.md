@@ -82,6 +82,9 @@ No configuration needed — markdown is the default for both input and output.
 | `create_note` | Create a new note — accepts markdown (default) or HTML |
 | `update_note` | Update note title, content (markdown or HTML), or attributes |
 | `delete_note` | Delete a note |
+| `delete_attribute` | Delete an attribute (label or relation) from a note by name |
+| `create_backup` | Create a backup of the Trilium database |
+| `create_revision` | Create a revision snapshot of a note's current content |
 
 ## Configuration
 
@@ -112,6 +115,18 @@ Create a note called "Pasta Carbonara" tagged with "recipe" and "italian"
 Create a note "Sprint Planning" with labels priority=high and status=active
 Add a "completed" tag to my "Q4 Report" note
 Update the priority label on my "Bug Fix" note to "low"
+```
+
+**Delete attributes:**
+```
+Remove the "deprecated" tag from my "Old API" note
+Delete the priority label from my "Task List" note
+```
+
+**Backups and revisions:**
+```
+Create a backup of my Trilium database called "before-cleanup"
+Save a revision of my "Project Plan" note before I make changes
 ```
 
 **Explore hierarchy:**
