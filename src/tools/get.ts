@@ -3,6 +3,7 @@
  */
 
 import { z } from 'zod';
+import { NodeHtmlMarkdown } from 'node-html-markdown';
 import type { TriliumClient } from '../trilium-client.js';
 
 export const getNoteSchema = z.object({
@@ -28,7 +29,8 @@ export async function getNote(
         title: note.title,
         type: note.type,
         mime: note.mime,
-        content: note.content,
+        content: note.type === 'text' ? NodeHtmlMarkdown.translate(note.content) : note.content,
+        contentFormat: note.type === 'text' ? 'markdown' : 'raw',
         dateCreated: note.dateCreated,
         dateModified: note.dateModified,
         attributes: note.attributes.map((attr) => ({

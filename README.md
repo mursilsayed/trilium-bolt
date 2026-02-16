@@ -1,6 +1,6 @@
 # trilium-bolt
 
-Lightning-fast MCP server for [Trilium Notes](https://github.com/zadam/trilium) — search, create, update, and organize your notes with AI. Connect Claude to your personal knowledge base with minimal setup.
+Lightning-fast MCP server for [Trilium Notes](https://github.com/zadam/trilium) — returns LLM-friendly markdown instead of raw HTML, so AI can read and write your notes naturally. Search, create, update, and organize your notes with AI. Connect Claude to your personal knowledge base with minimal setup.
 
 ## Quick Start
 
@@ -62,15 +62,25 @@ Unlike traditional servers, trilium-bolt uses **stdio transport** - meaning:
 
 This is the simplest possible architecture - just a CLI that your MCP client invokes when you ask about your notes.
 
+## Markdown support
+
+Trilium stores notes as HTML internally, but LLMs work much better with markdown. trilium-bolt handles the conversion transparently:
+
+- **Reading notes** — HTML content is automatically converted to markdown before returning to the AI
+- **Creating/updating notes** — Content is accepted as markdown by default and converted to HTML before saving to Trilium
+- **HTML pass-through** — Set `contentFormat: "html"` on create/update calls if you need to send raw HTML
+
+No configuration needed — markdown is the default for both input and output.
+
 ## Tools
 
 | Tool | Description |
 |------|-------------|
 | `search_notes` | Full-text and attribute search |
-| `get_note` | Retrieve note content and metadata |
+| `get_note` | Retrieve note content (as markdown) and metadata |
 | `get_note_tree` | Get children/hierarchy of a note |
-| `create_note` | Create a new note with optional attributes (labels/relations) |
-| `update_note` | Update note title, content, or attributes |
+| `create_note` | Create a new note — accepts markdown (default) or HTML |
+| `update_note` | Update note title, content (markdown or HTML), or attributes |
 | `delete_note` | Delete a note |
 
 ## Configuration

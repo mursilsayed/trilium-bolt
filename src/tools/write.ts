@@ -3,6 +3,7 @@
  */
 
 import { z } from 'zod';
+import { marked } from 'marked';
 import type { TriliumClient } from '../trilium-client.js';
 
 const attributeSchema = z.object({
@@ -32,6 +33,11 @@ export const createNoteSchema = z.object({
     .describe('ID of the parent note (default: "root" for top-level)'),
   title: z.string().describe('Title of the new note'),
   content: z.string().describe('Content of the note (HTML for text notes)'),
+  contentFormat: z
+    .enum(['markdown', 'html'])
+    .optional()
+    .default('markdown')
+    .describe('Format of the content: "markdown" (default) or "html". When "markdown", content is converted to HTML before saving.'),
   type: z
     .enum(['text', 'code', 'file', 'image', 'search', 'book', 'relationMap', 'render'])
     .optional()
@@ -53,10 +59,14 @@ export async function createNote(
   client: TriliumClient,
   input: CreateNoteInput
 ): Promise<string> {
+  const content = input.contentFormat === 'markdown'
+    ? await marked.parse(input.content)
+    : input.content;
+
   const result = await client.createNote({
     parentNoteId: input.parentNoteId,
     title: input.title,
-    content: input.content,
+    content,
     type: input.type,
     mime: input.mime,
   });
@@ -98,6 +108,11 @@ export const updateNoteSchema = z.object({
   noteId: z.string().describe('ID of the note to update'),
   title: z.string().optional().describe('New title for the note'),
   content: z.string().optional().describe('New content for the note'),
+  contentFormat: z
+    .enum(['markdown', 'html'])
+    .optional()
+    .default('markdown')
+    .describe('Format of the content: "markdown" (default) or "html". When "markdown", content is converted to HTML before saving.'),
   attributes: z
     .array(attributeSchema)
     .optional()
@@ -122,7 +137,10 @@ export async function updateNote(
   }
 
   if (input.content) {
-    await client.updateNoteContent(input.noteId, input.content);
+    const content = input.contentFormat === 'markdown'
+      ? await marked.parse(input.content)
+      : input.content;
+    await client.updateNoteContent(input.noteId, content);
     updates.push('content');
   }
 

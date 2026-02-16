@@ -1,7 +1,7 @@
 {
   "name": "trilium-bolt",
-  "version": "1.1.0",
-  "description": "Lightning-fast MCP server for Trilium Notes — search, create, update, and organize your notes with AI",
+  "version": "1.2.0",
+  "description": "Lightning-fast MCP server for Trilium Notes — returns LLM-friendly markdown, search, create, update, and organize your notes with AI",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
@@ -30,9 +30,12 @@
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "marked": "^17.0.2",
+    "node-html-markdown": "^2.0.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@types/marked": "^5.0.2",
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0"
   },
