@@ -60,7 +60,7 @@ server.tool(
 
 server.tool(
   'get_note',
-  'Get a note by ID, including its content and metadata',
+  'Get a note by ID, including its content and metadata. Text note content is returned as markdown for easier reading and processing.',
   getNoteSchema.shape,
   async (args) => {
     try {
@@ -90,7 +90,7 @@ server.tool(
 
 server.tool(
   'create_note',
-  'Create a new note in Trilium',
+  'Create a new note in Trilium. Content can be provided as markdown (default) or HTML via the contentFormat parameter.',
   createNoteSchema.shape,
   async (args) => {
     try {
@@ -105,7 +105,7 @@ server.tool(
 
 server.tool(
   'update_note',
-  'Update a note\'s title and/or content',
+  'Update a note\'s title and/or content. Content can be provided as markdown (default) or HTML via the contentFormat parameter.',
   updateNoteSchema.shape,
   async (args) => {
     try {

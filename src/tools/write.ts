@@ -32,7 +32,7 @@ export const createNoteSchema = z.object({
     .default('root')
     .describe('ID of the parent note (default: "root" for top-level)'),
   title: z.string().describe('Title of the new note'),
-  content: z.string().describe('Content of the note (HTML for text notes)'),
+  content: z.string().describe('Content of the note. Markdown by default — use contentFormat to switch to HTML.'),
   contentFormat: z
     .enum(['markdown', 'html'])
     .optional()
@@ -59,7 +59,7 @@ export async function createNote(
   client: TriliumClient,
   input: CreateNoteInput
 ): Promise<string> {
-  const content = input.contentFormat === 'markdown'
+  const content = input.contentFormat !== 'html'
     ? await marked.parse(input.content)
     : input.content;
 
@@ -107,7 +107,7 @@ export async function createNote(
 export const updateNoteSchema = z.object({
   noteId: z.string().describe('ID of the note to update'),
   title: z.string().optional().describe('New title for the note'),
-  content: z.string().optional().describe('New content for the note'),
+  content: z.string().optional().describe('New content for the note. Markdown by default — use contentFormat to switch to HTML.'),
   contentFormat: z
     .enum(['markdown', 'html'])
     .optional()
@@ -137,7 +137,7 @@ export async function updateNote(
   }
 
   if (input.content) {
-    const content = input.contentFormat === 'markdown'
+    const content = input.contentFormat !== 'html'
       ? await marked.parse(input.content)
       : input.content;
     await client.updateNoteContent(input.noteId, content);
