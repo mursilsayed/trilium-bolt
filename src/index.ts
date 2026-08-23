@@ -39,7 +39,7 @@ import {
 // Create the MCP server
 const server = new McpServer({
   name: 'trilium-bolt',
-  version: '1.4.0',
+  version: '1.5.0',
 });
 
 // Initialize Trilium client (lazily, on first tool use)
