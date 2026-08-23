@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createNote, updateNote, deleteAttribute } from '../write.js';
+import { createNote, updateNote, patchNote, deleteAttribute } from '../write.js';
 import type { TriliumClient } from '../../trilium-client.js';
 
 function mockClient(overrides: Record<string, unknown> = {}) {
@@ -10,6 +10,7 @@ function mockClient(overrides: Record<string, unknown> = {}) {
     }),
     updateNoteTitle: vi.fn().mockResolvedValue({}),
     updateNoteContent: vi.fn().mockResolvedValue(undefined),
+    getNoteContent: vi.fn().mockResolvedValue(''),
     createAttribute: vi.fn().mockResolvedValue({ type: 'label', name: 'test', value: 'val' }),
     getNote: vi.fn().mockResolvedValue({ attributes: [] }),
     ...overrides,
@@ -93,6 +94,132 @@ describe('updateNote', () => {
 
     const call = (client.updateNoteContent as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(call[1]).toBe(htmlContent);
+  });
+});
+
+describe('patchNote', () => {
+  it('replaces a unique literal match in markdown content', async () => {
+    const client = mockClient({
+      getNoteContent: vi.fn().mockResolvedValue('<h1>Phase 1</h1><p>Some text.</p>'),
+    });
+
+    const result = await patchNote(client, {
+      noteId: 'abc123',
+      search: 'Phase 1',
+      replace: 'Phase 2',
+      isRegex: false,
+      contentFormat: 'markdown',
+    });
+
+    const call = (client.updateNoteContent as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[0]).toBe('abc123');
+    expect(call[1]).toContain('<h1>Phase 2</h1>');
+
+    const parsed = JSON.parse(result);
+    expect(parsed.success).toBe(true);
+    expect(parsed.matchCount).toBe(1);
+    expect(parsed.occurrenceReplaced).toBe(1);
+  });
+
+  it('replaces raw HTML directly when contentFormat is "html"', async () => {
+    const client = mockClient({
+      getNoteContent: vi.fn().mockResolvedValue('<p>Hello world</p>'),
+    });
+
+    await patchNote(client, {
+      noteId: 'abc123',
+      search: 'world',
+      replace: 'there',
+      isRegex: false,
+      contentFormat: 'html',
+    });
+
+    const call = (client.updateNoteContent as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[1]).toBe('<p>Hello there</p>');
+  });
+
+  it('throws when search matches nothing', async () => {
+    const client = mockClient({
+      getNoteContent: vi.fn().mockResolvedValue('<p>Hello world</p>'),
+    });
+
+    await expect(
+      patchNote(client, {
+        noteId: 'abc123',
+        search: 'missing',
+        replace: 'x',
+        isRegex: false,
+        contentFormat: 'markdown',
+      })
+    ).rejects.toThrow('No match found');
+  });
+
+  it('throws when search matches more than once without an occurrence', async () => {
+    const client = mockClient({
+      getNoteContent: vi.fn().mockResolvedValue('<p>foo foo</p>'),
+    });
+
+    await expect(
+      patchNote(client, {
+        noteId: 'abc123',
+        search: 'foo',
+        replace: 'bar',
+        isRegex: false,
+        contentFormat: 'markdown',
+      })
+    ).rejects.toThrow('matches 2 locations');
+  });
+
+  it('replaces only the specified occurrence when disambiguated', async () => {
+    const client = mockClient({
+      getNoteContent: vi.fn().mockResolvedValue('<p>foo foo</p>'),
+    });
+
+    await patchNote(client, {
+      noteId: 'abc123',
+      search: 'foo',
+      replace: 'bar',
+      isRegex: false,
+      occurrence: 2,
+      contentFormat: 'html',
+    });
+
+    const call = (client.updateNoteContent as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[1]).toBe('<p>foo bar</p>');
+  });
+
+  it('throws when occurrence is out of range', async () => {
+    const client = mockClient({
+      getNoteContent: vi.fn().mockResolvedValue('<p>foo foo</p>'),
+    });
+
+    await expect(
+      patchNote(client, {
+        noteId: 'abc123',
+        search: 'foo',
+        replace: 'bar',
+        isRegex: false,
+        occurrence: 5,
+        contentFormat: 'html',
+      })
+    ).rejects.toThrow('out of range');
+  });
+
+  it('supports regex search', async () => {
+    const client = mockClient({
+      getNoteContent: vi.fn().mockResolvedValue('<p>call user123 now</p>'),
+    });
+
+    await patchNote(client, {
+      noteId: 'abc123',
+      search: 'user\\d+',
+      replace: 'user456',
+      isRegex: true,
+      contentFormat: 'html',
+    });
+
+    const call = (client.updateNoteContent as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[1]).toBe('<p>call user456 now</p>');
   });
 });
 

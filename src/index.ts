@@ -22,6 +22,8 @@ import {
   createNote,
   updateNoteSchema,
   updateNote,
+  patchNoteSchema,
+  patchNote,
   deleteNoteSchema,
   deleteNote,
   deleteAttributeSchema,
@@ -118,6 +120,21 @@ server.tool(
   async (args) => {
     try {
       const result = await updateNote(getClient(), updateNoteSchema.parse(args));
+      return { content: [{ type: 'text', text: result }] };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  'patch_note',
+  'Find-and-replace a piece of a note\'s content without resending the whole note. Rejects the call if "search" matches zero or more than one location, unless "occurrence" is given to disambiguate.',
+  patchNoteSchema.shape,
+  async (args) => {
+    try {
+      const result = await patchNote(getClient(), patchNoteSchema.parse(args));
       return { content: [{ type: 'text', text: result }] };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';

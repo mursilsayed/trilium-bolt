@@ -4,6 +4,7 @@
 
 import { z } from 'zod';
 import { marked } from 'marked';
+import { NodeHtmlMarkdown } from 'node-html-markdown';
 import type { TriliumClient } from '../trilium-client.js';
 
 const attributeSchema = z.object({
@@ -179,6 +180,91 @@ export async function updateNote(
       noteId: input.noteId,
       updated: updates,
       attributes: updatedAttributes,
+    },
+    null,
+    2
+  );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export const patchNoteSchema = z.object({
+  noteId: z.string().describe('ID of the note to patch'),
+  search: z.string().describe('Literal text (or regex pattern, if isRegex is true) to find in the note content'),
+  replace: z.string().describe('Text to replace the match with'),
+  isRegex: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Treat "search" as a regular expression instead of literal text (default: false)'),
+  occurrence: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('1-based index of the match to replace. Required when "search" matches more than one location.'),
+  contentFormat: z
+    .enum(['markdown', 'html'])
+    .optional()
+    .default('markdown')
+    .describe('Format "search" and "replace" are expressed in: "markdown" (default, matches what get_note returns) or "html" (the raw stored format)'),
+});
+
+export type PatchNoteInput = z.infer<typeof patchNoteSchema>;
+
+export async function patchNote(
+  client: TriliumClient,
+  input: PatchNoteInput
+): Promise<string> {
+  const rawHtml = await client.getNoteContent(input.noteId);
+  const workingContent = input.contentFormat === 'html'
+    ? rawHtml
+    : NodeHtmlMarkdown.translate(rawHtml);
+
+  const pattern = new RegExp(
+    input.isRegex ? input.search : escapeRegExp(input.search),
+    'g'
+  );
+
+  const matches = [...workingContent.matchAll(pattern)];
+
+  if (matches.length === 0) {
+    throw new Error(`No match found for "${input.search}"`);
+  }
+
+  if (matches.length > 1 && !input.occurrence) {
+    throw new Error(
+      `"${input.search}" matches ${matches.length} locations. Provide "occurrence" (1-${matches.length}) to disambiguate.`
+    );
+  }
+
+  const targetOccurrence = input.occurrence ?? 1;
+  if (targetOccurrence > matches.length) {
+    throw new Error(
+      `"occurrence" ${targetOccurrence} is out of range; "${input.search}" matches ${matches.length} location(s).`
+    );
+  }
+
+  let seen = 0;
+  const patchedContent = workingContent.replace(pattern, (match) => {
+    seen += 1;
+    return seen === targetOccurrence ? input.replace : match;
+  });
+
+  const newHtml = input.contentFormat === 'html'
+    ? patchedContent
+    : await marked.parse(patchedContent);
+
+  await client.updateNoteContent(input.noteId, newHtml);
+
+  return JSON.stringify(
+    {
+      success: true,
+      noteId: input.noteId,
+      matchCount: matches.length,
+      occurrenceReplaced: targetOccurrence,
     },
     null,
     2

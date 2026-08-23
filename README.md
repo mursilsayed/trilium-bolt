@@ -81,6 +81,7 @@ No configuration needed — markdown is the default for both input and output.
 | `get_note_tree` | Get children/hierarchy of a note |
 | `create_note` | Create a new note — accepts markdown (default) or HTML |
 | `update_note` | Update note title, content (markdown or HTML), or attributes |
+| `patch_note` | Find-and-replace a piece of a note's content without resending the whole note |
 | `delete_note` | Delete a note |
 | `delete_attribute` | Delete an attribute (label or relation) from a note by name |
 | `create_backup` | Create a backup of the Trilium database |
