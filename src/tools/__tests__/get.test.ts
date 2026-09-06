@@ -1,11 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
-import { getNote } from '../get.js';
+import { getNote, getRevisions, getRevision } from '../get.js';
 import type { TriliumClient } from '../../trilium-client.js';
 
 function mockClient(overrides: Record<string, unknown> = {}) {
   return {
     getNoteWithContent: vi.fn(),
     getNote: vi.fn(),
+    listRevisions: vi.fn(),
+    getRevisionMetadata: vi.fn(),
+    getRevisionContent: vi.fn(),
     ...overrides,
   } as unknown as TriliumClient;
 }
@@ -146,5 +149,118 @@ describe('getNote', () => {
       expect(result.content).toBeUndefined();
       expect(result.contentFormat).toBeUndefined();
     });
+  });
+
+  describe('pagination', () => {
+    it('returns full content and truncated:false when no pagination params given', async () => {
+      const client = mockClient({
+        getNoteWithContent: vi.fn().mockResolvedValue({
+          ...baseNote,
+          content: '<p>Hello world</p>',
+        }),
+      });
+
+      const result = JSON.parse(await getNote(client, { noteId: 'abc123', includeContent: true }));
+      expect(result.content).toBe('Hello world');
+      expect(result.contentLength).toBe('Hello world'.length);
+      expect(result.truncated).toBe(false);
+      expect(result.nextStart).toBeUndefined();
+    });
+
+    it('slices content and reports truncated:true with nextStart when contentMaxChars is less than length', async () => {
+      const client = mockClient({
+        getNoteWithContent: vi.fn().mockResolvedValue({
+          ...baseNote,
+          content: '<p>Hello world</p>',
+        }),
+      });
+
+      const result = JSON.parse(
+        await getNote(client, { noteId: 'abc123', includeContent: true, contentMaxChars: 5 })
+      );
+      expect(result.content).toBe('Hello');
+      expect(result.contentLength).toBe('Hello world'.length);
+      expect(result.truncated).toBe(true);
+      expect(result.nextStart).toBe(5);
+    });
+
+    it('returns an empty slice without crashing when contentStart is past the end', async () => {
+      const client = mockClient({
+        getNoteWithContent: vi.fn().mockResolvedValue({
+          ...baseNote,
+          content: '<p>Hello world</p>',
+        }),
+      });
+
+      const result = JSON.parse(
+        await getNote(client, { noteId: 'abc123', includeContent: true, contentStart: 1000 })
+      );
+      expect(result.content).toBe('');
+      expect(result.truncated).toBe(false);
+    });
+  });
+});
+
+describe('getRevisions', () => {
+  it('lists revision metadata for a note', async () => {
+    const client = mockClient({
+      listRevisions: vi.fn().mockResolvedValue([
+        {
+          revisionId: 'rev2',
+          noteId: 'abc123',
+          type: 'text',
+          mime: 'text/html',
+          dateCreated: '2024-01-02',
+          dateLastEdited: '2024-01-02',
+        },
+        {
+          revisionId: 'rev1',
+          noteId: 'abc123',
+          type: 'text',
+          mime: 'text/html',
+          dateCreated: '2024-01-01',
+          dateLastEdited: '2024-01-01',
+        },
+      ]),
+    });
+
+    const result = JSON.parse(await getRevisions(client, { noteId: 'abc123' }));
+    expect(result.revisions).toHaveLength(2);
+    expect(result.revisions[0].revisionId).toBe('rev2');
+  });
+});
+
+describe('getRevision', () => {
+  const revisionMeta = {
+    revisionId: 'rev1',
+    noteId: 'abc123',
+    type: 'text',
+    mime: 'text/html',
+    dateCreated: '2024-01-01',
+    dateLastEdited: '2024-01-01',
+  };
+
+  it('fetches metadata and content, converting text to markdown', async () => {
+    const client = mockClient({
+      getRevisionMetadata: vi.fn().mockResolvedValue(revisionMeta),
+      getRevisionContent: vi.fn().mockResolvedValue('<h1>Old Version</h1>'),
+    });
+
+    const result = JSON.parse(await getRevision(client, { revisionId: 'rev1', includeContent: true }));
+    expect(result.content).toContain('Old Version');
+    expect(result.content).not.toContain('<h1>');
+    expect(result.contentFormat).toBe('markdown');
+  });
+
+  it('does not fetch content when includeContent is false', async () => {
+    const getRevisionContent = vi.fn();
+    const client = mockClient({
+      getRevisionMetadata: vi.fn().mockResolvedValue(revisionMeta),
+      getRevisionContent,
+    });
+
+    const result = JSON.parse(await getRevision(client, { revisionId: 'rev1', includeContent: false }));
+    expect(result.content).toBeUndefined();
+    expect(getRevisionContent).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "trilium-bolt",
-  "version": "1.5.0",
+  "version": "1.6.1",
   "description": "Lightning-fast MCP server for Trilium Notes — returns LLM-friendly markdown, search, create, update, and organize your notes with AI",
   "type": "module",
   "main": "./dist/index.js",

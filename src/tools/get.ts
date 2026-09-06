@@ -13,6 +13,18 @@ export const getNoteSchema = z.object({
     .optional()
     .default(true)
     .describe('Whether to include the note content (default: true)'),
+  contentStart: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('Character offset to start the returned content slice from (default: 0)'),
+  contentMaxChars: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Maximum number of characters of content to return, for paging through large notes'),
 });
 
 export type GetNoteInput = z.infer<typeof getNoteSchema>;
@@ -23,14 +35,24 @@ export async function getNote(
 ): Promise<string> {
   if (input.includeContent) {
     const note = await client.getNoteWithContent(input.noteId);
+    const fullContent = note.type === 'text' ? NodeHtmlMarkdown.translate(note.content) : note.content;
+
+    const start = input.contentStart ?? 0;
+    const end = input.contentMaxChars !== undefined ? start + input.contentMaxChars : fullContent.length;
+    const slicedContent = fullContent.slice(start, end);
+    const truncated = end < fullContent.length;
+
     return JSON.stringify(
       {
         noteId: note.noteId,
         title: note.title,
         type: note.type,
         mime: note.mime,
-        content: note.type === 'text' ? NodeHtmlMarkdown.translate(note.content) : note.content,
+        content: slicedContent,
         contentFormat: note.type === 'text' ? 'markdown' : 'raw',
+        contentLength: fullContent.length,
+        truncated,
+        ...(truncated ? { nextStart: end } : {}),
         dateCreated: note.dateCreated,
         dateModified: note.dateModified,
         attributes: note.attributes.map((attr) => ({
@@ -134,6 +156,84 @@ export async function getNoteTree(
       parentNoteId: input.noteId,
       depth: input.depth,
       children: tree,
+    },
+    null,
+    2
+  );
+}
+
+export const getRevisionsSchema = z.object({
+  noteId: z.string().describe('The ID of the note to list revisions for'),
+});
+
+export type GetRevisionsInput = z.infer<typeof getRevisionsSchema>;
+
+export async function getRevisions(
+  client: TriliumClient,
+  input: GetRevisionsInput
+): Promise<string> {
+  const revisions = await client.listRevisions(input.noteId);
+
+  return JSON.stringify(
+    {
+      noteId: input.noteId,
+      revisions: revisions.map((rev) => ({
+        revisionId: rev.revisionId,
+        type: rev.type,
+        mime: rev.mime,
+        dateCreated: rev.dateCreated,
+        dateLastEdited: rev.dateLastEdited,
+      })),
+    },
+    null,
+    2
+  );
+}
+
+export const getRevisionSchema = z.object({
+  revisionId: z.string().describe('The ID of the revision to retrieve'),
+  includeContent: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Whether to include the revision content (default: true)'),
+});
+
+export type GetRevisionInput = z.infer<typeof getRevisionSchema>;
+
+export async function getRevision(
+  client: TriliumClient,
+  input: GetRevisionInput
+): Promise<string> {
+  const revision = await client.getRevisionMetadata(input.revisionId);
+
+  if (!input.includeContent) {
+    return JSON.stringify(
+      {
+        revisionId: revision.revisionId,
+        noteId: revision.noteId,
+        type: revision.type,
+        mime: revision.mime,
+        dateCreated: revision.dateCreated,
+        dateLastEdited: revision.dateLastEdited,
+      },
+      null,
+      2
+    );
+  }
+
+  const rawContent = await client.getRevisionContent(input.revisionId);
+
+  return JSON.stringify(
+    {
+      revisionId: revision.revisionId,
+      noteId: revision.noteId,
+      type: revision.type,
+      mime: revision.mime,
+      content: revision.type === 'text' ? NodeHtmlMarkdown.translate(rawContent) : rawContent,
+      contentFormat: revision.type === 'text' ? 'markdown' : 'raw',
+      dateCreated: revision.dateCreated,
+      dateLastEdited: revision.dateLastEdited,
     },
     null,
     2

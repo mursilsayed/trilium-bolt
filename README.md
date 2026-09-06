@@ -17,7 +17,7 @@ Add to your `~/.claude.json`:
   "mcpServers": {
     "trilium": {
       "command": "npx",
-      "args": ["-y", "trilium-bolt"],
+      "args": ["-y", "trilium-bolt@latest"],
       "env": {
         "TRILIUM_TOKEN": "your-token-here"
       }
@@ -29,6 +29,15 @@ Add to your `~/.claude.json`:
 > **Not using Claude Code?** See setup instructions for [Cursor, Windsurf, VS Code, Cline, and other MCP clients](docs/mcp-clients.md)
 >
 > **Running Trilium in Docker?** See the [Docker Setup Guide](docs/docker.md)
+
+### Staying on the latest version
+
+Pinning `@latest` in the config above makes `npx` re-check the npm registry on every launch, so new tool releases show up automatically the next time your MCP client restarts.
+
+- **Already configured without `@latest`?** Update your config to `trilium-bolt@latest` as shown above, then restart your MCP client so it respawns the server process.
+- **Still seeing an old version after that?** `npx` can serve a stale cached copy — clear it once with `npx clear-npx-cache` (or delete `~/.npm/_npx`), then restart your client again.
+- **Installed globally instead** (`npm install -g trilium-bolt`)? Global installs don't auto-update — run `npm install -g trilium-bolt@latest` to upgrade.
+- **Confirm the version in use:** `npm view trilium-bolt version` shows the latest published version on npm to compare against.
 
 ### 3. Use it
 
@@ -77,15 +86,17 @@ No configuration needed — markdown is the default for both input and output.
 | Tool | Description |
 |------|-------------|
 | `search_notes` | Full-text and attribute search |
-| `get_note` | Retrieve note content (as markdown) and metadata |
+| `get_note` | Retrieve note content (as markdown) and metadata; supports `contentStart`/`contentMaxChars` to page through large notes |
 | `get_note_tree` | Get children/hierarchy of a note |
+| `get_revisions` | List revision snapshots for a note, newest first |
+| `get_revision` | Get a single revision's content and metadata |
 | `create_note` | Create a new note — accepts markdown (default) or HTML |
-| `update_note` | Update note title, content (markdown or HTML), or attributes |
-| `patch_note` | Find-and-replace a piece of a note's content without resending the whole note |
+| `update_note` | Update note title, content (markdown or HTML), or attributes; optional `expectedUtcDateModified` for optimistic concurrency |
+| `patch_note` | Find-and-replace a piece of a note's content without resending the whole note; optional `expectedUtcDateModified` for optimistic concurrency |
 | `delete_note` | Delete a note |
 | `delete_attribute` | Delete an attribute (label or relation) from a note by name |
 | `create_backup` | Create a backup of the Trilium database |
-| `create_revision` | Create a revision snapshot of a note's current content |
+| `create_revision` | Create a revision snapshot of a note's current content; returns the new `revisionId` |
 
 ## Configuration
 

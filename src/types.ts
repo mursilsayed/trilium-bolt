@@ -69,6 +69,18 @@ export interface CreateNoteResponse {
   branch: Branch;
 }
 
+export interface Revision {
+  revisionId: string;
+  noteId: string;
+  type: string;
+  mime: string;
+  isProtected: boolean;
+  dateCreated: string;
+  dateLastEdited: string;
+  utcDateCreated: string;
+  utcDateLastEdited: string;
+}
+
 export interface TriliumError {
   status: number;
   code: string;

@@ -10,6 +10,7 @@ import type {
   SearchResult,
   CreateNoteParams,
   CreateNoteResponse,
+  Revision,
 } from './types.js';
 
 export class TriliumClient {
@@ -230,5 +231,48 @@ export class TriliumClient {
    */
   async createRevision(noteId: string): Promise<void> {
     await this.request<void>('POST', `/notes/${noteId}/revision`);
+  }
+
+  /**
+   * List revision metadata for a note, newest first
+   */
+  async listRevisions(noteId: string): Promise<Revision[]> {
+    const result = await this.request<Revision[] | { results: Revision[] }>(
+      'GET',
+      `/notes/${noteId}/revisions`
+    );
+
+    const revisions = Array.isArray(result) ? result : result.results || [];
+
+    return [...revisions].sort(
+      (a, b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime()
+    );
+  }
+
+  /**
+   * Get metadata for a single revision
+   */
+  async getRevisionMetadata(revisionId: string): Promise<Revision> {
+    return this.request<Revision>('GET', `/revisions/${revisionId}`);
+  }
+
+  /**
+   * Get a revision's content
+   */
+  async getRevisionContent(revisionId: string): Promise<string> {
+    const url = `${this.baseUrl}/etapi/revisions/${revisionId}/content`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: this.token,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get revision content: ${response.statusText}`);
+    }
+
+    return response.text();
   }
 }

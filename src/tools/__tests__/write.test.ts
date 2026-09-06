@@ -223,6 +223,109 @@ describe('patchNote', () => {
   });
 });
 
+describe('updateNote optimistic concurrency', () => {
+  it('proceeds normally when expectedUtcDateModified matches', async () => {
+    const client = mockClient({
+      getNote: vi.fn().mockResolvedValue({ attributes: [], utcDateModified: 'v1' }),
+    });
+
+    const result = await updateNote(client, {
+      noteId: 'abc123',
+      title: 'New Title',
+      expectedUtcDateModified: 'v1',
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.success).toBe(true);
+    expect(client.updateNoteTitle).toHaveBeenCalledWith('abc123', 'New Title');
+  });
+
+  it('throws and does not write when expectedUtcDateModified does not match', async () => {
+    const client = mockClient({
+      getNote: vi.fn().mockResolvedValue({ attributes: [], utcDateModified: 'v2' }),
+    });
+
+    await expect(
+      updateNote(client, {
+        noteId: 'abc123',
+        title: 'New Title',
+        expectedUtcDateModified: 'v1',
+      })
+    ).rejects.toThrow('changed since last read');
+
+    expect(client.updateNoteTitle).not.toHaveBeenCalled();
+  });
+
+  it('never calls getNote when expectedUtcDateModified is omitted and no attributes given', async () => {
+    const getNote = vi.fn();
+    const client = mockClient({ getNote });
+
+    await updateNote(client, { noteId: 'abc123', title: 'New Title' });
+
+    expect(getNote).not.toHaveBeenCalled();
+  });
+});
+
+describe('patchNote optimistic concurrency', () => {
+  it('proceeds normally when expectedUtcDateModified matches', async () => {
+    const client = mockClient({
+      getNoteContent: vi.fn().mockResolvedValue('<p>Hello world</p>'),
+      getNote: vi.fn().mockResolvedValue({ utcDateModified: 'v1' }),
+    });
+
+    const result = await patchNote(client, {
+      noteId: 'abc123',
+      search: 'world',
+      replace: 'there',
+      isRegex: false,
+      contentFormat: 'html',
+      expectedUtcDateModified: 'v1',
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.success).toBe(true);
+    expect(client.updateNoteContent).toHaveBeenCalledWith('abc123', '<p>Hello there</p>');
+  });
+
+  it('throws and does not write when expectedUtcDateModified does not match', async () => {
+    const client = mockClient({
+      getNoteContent: vi.fn().mockResolvedValue('<p>Hello world</p>'),
+      getNote: vi.fn().mockResolvedValue({ utcDateModified: 'v2' }),
+    });
+
+    await expect(
+      patchNote(client, {
+        noteId: 'abc123',
+        search: 'world',
+        replace: 'there',
+        isRegex: false,
+        contentFormat: 'html',
+        expectedUtcDateModified: 'v1',
+      })
+    ).rejects.toThrow('changed since last read');
+
+    expect(client.updateNoteContent).not.toHaveBeenCalled();
+  });
+
+  it('never calls getNote when expectedUtcDateModified is omitted', async () => {
+    const getNote = vi.fn();
+    const client = mockClient({
+      getNoteContent: vi.fn().mockResolvedValue('<p>Hello world</p>'),
+      getNote,
+    });
+
+    await patchNote(client, {
+      noteId: 'abc123',
+      search: 'world',
+      replace: 'there',
+      isRegex: false,
+      contentFormat: 'html',
+    });
+
+    expect(getNote).not.toHaveBeenCalled();
+  });
+});
+
 describe('deleteAttribute', () => {
   it('deletes a matching attribute successfully', async () => {
     const client = mockClient({

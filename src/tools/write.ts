@@ -118,6 +118,10 @@ export const updateNoteSchema = z.object({
     .array(attributeSchema)
     .optional()
     .describe('Attributes to set on the note. If an attribute with the same type and name exists, its value will be updated; otherwise a new attribute is created.'),
+  expectedUtcDateModified: z
+    .string()
+    .optional()
+    .describe('The utcDateModified value last observed from get_note. If the note has changed since, the update is rejected instead of silently overwriting.'),
 });
 
 export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
@@ -128,6 +132,15 @@ export async function updateNote(
 ): Promise<string> {
   if (!input.title && !input.content && !input.attributes?.length) {
     throw new Error('At least one of "title", "content", or "attributes" must be provided');
+  }
+
+  if (input.expectedUtcDateModified) {
+    const current = await client.getNote(input.noteId);
+    if (current.utcDateModified !== input.expectedUtcDateModified) {
+      throw new Error(
+        `Note ${input.noteId} changed since last read (expected utcDateModified "${input.expectedUtcDateModified}", found "${current.utcDateModified}"). Re-fetch with get_note before retrying.`
+      );
+    }
   }
 
   const updates: string[] = [];
@@ -210,6 +223,10 @@ export const patchNoteSchema = z.object({
     .optional()
     .default('markdown')
     .describe('Format "search" and "replace" are expressed in: "markdown" (default, matches what get_note returns) or "html" (the raw stored format)'),
+  expectedUtcDateModified: z
+    .string()
+    .optional()
+    .describe('The utcDateModified value last observed from get_note. If the note has changed since, the patch is rejected instead of silently overwriting.'),
 });
 
 export type PatchNoteInput = z.infer<typeof patchNoteSchema>;
@@ -218,7 +235,17 @@ export async function patchNote(
   client: TriliumClient,
   input: PatchNoteInput
 ): Promise<string> {
-  const rawHtml = await client.getNoteContent(input.noteId);
+  const [rawHtml, current] = await Promise.all([
+    client.getNoteContent(input.noteId),
+    input.expectedUtcDateModified ? client.getNote(input.noteId) : Promise.resolve(undefined),
+  ]);
+
+  if (input.expectedUtcDateModified && current && current.utcDateModified !== input.expectedUtcDateModified) {
+    throw new Error(
+      `Note ${input.noteId} changed since last read (expected utcDateModified "${input.expectedUtcDateModified}", found "${current.utcDateModified}"). Re-fetch with get_note before retrying.`
+    );
+  }
+
   const workingContent = input.contentFormat === 'html'
     ? rawHtml
     : NodeHtmlMarkdown.translate(rawHtml);

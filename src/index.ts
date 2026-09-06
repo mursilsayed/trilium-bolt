@@ -16,6 +16,10 @@ import {
   getNote,
   getNoteTreeSchema,
   getNoteTree,
+  getRevisionsSchema,
+  getRevisions,
+  getRevisionSchema,
+  getRevision,
 } from './tools/get.js';
 import {
   createNoteSchema,
@@ -39,7 +43,7 @@ import {
 // Create the MCP server
 const server = new McpServer({
   name: 'trilium-bolt',
-  version: '1.5.0',
+  version: '1.6.1',
 });
 
 // Initialize Trilium client (lazily, on first tool use)
@@ -90,6 +94,36 @@ server.tool(
   async (args) => {
     try {
       const result = await getNoteTree(getClient(), getNoteTreeSchema.parse(args));
+      return { content: [{ type: 'text', text: result }] };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  'get_revisions',
+  'List revision snapshots for a note, newest first',
+  getRevisionsSchema.shape,
+  async (args) => {
+    try {
+      const result = await getRevisions(getClient(), getRevisionsSchema.parse(args));
+      return { content: [{ type: 'text', text: result }] };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  'get_revision',
+  'Get a single revision by ID, including its content and metadata. Text revision content is returned as markdown.',
+  getRevisionSchema.shape,
+  async (args) => {
+    try {
+      const result = await getRevision(getClient(), getRevisionSchema.parse(args));
       return { content: [{ type: 'text', text: result }] };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';

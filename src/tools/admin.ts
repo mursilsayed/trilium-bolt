@@ -40,10 +40,19 @@ export async function createRevision(
 ): Promise<string> {
   await client.createRevision(input.noteId);
 
+  let revisionId: string | undefined;
+  try {
+    const revisions = await client.listRevisions(input.noteId);
+    revisionId = revisions[0]?.revisionId;
+  } catch {
+    revisionId = undefined;
+  }
+
   return JSON.stringify(
     {
       success: true,
       noteId: input.noteId,
+      revisionId,
       message: 'Revision created successfully',
     },
     null,
