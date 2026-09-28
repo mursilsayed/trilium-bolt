@@ -264,3 +264,23 @@ describe('getRevision', () => {
     expect(getRevisionContent).not.toHaveBeenCalled();
   });
 });
+
+describe('getNote utcDateModified', () => {
+  it('returns utcDateModified when content is included', async () => {
+    const client = mockClient({
+      getNoteWithContent: vi.fn().mockResolvedValue({ ...baseNote, content: '<p>x</p>' }),
+    });
+
+    const result = JSON.parse(await getNote(client, { noteId: 'abc123', includeContent: true }));
+    expect(result.utcDateModified).toBe(baseNote.utcDateModified);
+  });
+
+  it('returns utcDateModified for metadata only reads', async () => {
+    const client = mockClient({
+      getNote: vi.fn().mockResolvedValue(baseNote),
+    });
+
+    const result = JSON.parse(await getNote(client, { noteId: 'abc123', includeContent: false }));
+    expect(result.utcDateModified).toBe(baseNote.utcDateModified);
+  });
+});

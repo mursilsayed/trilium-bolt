@@ -55,6 +55,7 @@ export async function getNote(
         ...(truncated ? { nextStart: end } : {}),
         dateCreated: note.dateCreated,
         dateModified: note.dateModified,
+        utcDateModified: note.utcDateModified,
         attributes: note.attributes.map((attr) => ({
           type: attr.type,
           name: attr.name,
@@ -75,6 +76,7 @@ export async function getNote(
       mime: note.mime,
       dateCreated: note.dateCreated,
       dateModified: note.dateModified,
+      utcDateModified: note.utcDateModified,
       attributes: note.attributes.map((attr) => ({
         type: attr.type,
         name: attr.name,
