@@ -21,6 +21,7 @@ export interface Note {
 
 export interface NoteWithContent extends Note {
   content: string;
+  contentSha256: string;
 }
 
 export interface Attribute {
@@ -59,7 +60,7 @@ export interface AttributeInput {
 export interface CreateNoteParams {
   parentNoteId: string;
   title: string;
-  type: 'text' | 'code' | 'file' | 'image' | 'search' | 'book' | 'relationMap' | 'render';
+  type: 'text' | 'code' | 'file' | 'image' | 'search' | 'book' | 'relationMap' | 'render' | 'canvas';
   content: string;
   mime?: string;
 }

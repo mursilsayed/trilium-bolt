@@ -18,6 +18,11 @@ export const searchNotesSchema = z.object({
     .optional()
     .default(100)
     .describe('Maximum number of results to return (default: 100)'),
+  includeArchived: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Include notes labelled #archived in the results (default: false)'),
 });
 
 export type SearchNotesInput = z.infer<typeof searchNotesSchema>;
@@ -26,7 +31,7 @@ export async function searchNotes(
   client: TriliumClient,
   input: SearchNotesInput
 ): Promise<string> {
-  const results = await client.searchNotes(input.query, input.limit);
+  const results = await client.searchNotes(input.query, input.limit, input.includeArchived);
 
   if (results.length === 0) {
     return `No notes found matching "${input.query}"`;

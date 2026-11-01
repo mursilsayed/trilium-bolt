@@ -78,6 +78,7 @@ Trilium stores notes as HTML internally, but LLMs work much better with markdown
 - **Reading notes** — HTML content is automatically converted to markdown before returning to the AI
 - **Creating/updating notes** — Content is accepted as markdown by default and converted to HTML before saving to Trilium
 - **HTML pass-through** — Set `contentFormat: "html"` on create/update calls if you need to send raw HTML
+- **Other note types** — Only `text` notes are converted. Code, canvas and every other type are read and saved exactly as stored, and `contentFormat` is ignored for them
 
 No configuration needed — markdown is the default for both input and output.
 
@@ -85,14 +86,14 @@ No configuration needed — markdown is the default for both input and output.
 
 | Tool | Description |
 |------|-------------|
-| `search_notes` | Full-text and attribute search |
-| `get_note` | Retrieve note content (as markdown) and metadata; supports `contentStart`/`contentMaxChars` to page through large notes |
+| `search_notes` | Full-text and attribute search; `includeArchived` also searches notes labelled `#archived` |
+| `get_note` | Retrieve note content (as markdown for text notes, raw otherwise) and metadata, including parent and child note IDs; supports `contentStart`/`contentMaxChars` to page through large notes; always reports `contentSha256` and `contentLength` for the whole note |
 | `get_note_tree` | Get children/hierarchy of a note |
 | `get_revisions` | List revision snapshots for a note, newest first |
 | `get_revision` | Get a single revision's content and metadata |
-| `create_note` | Create a new note — accepts markdown (default) or HTML |
-| `update_note` | Update note title, content (markdown or HTML), or attributes; optional `expectedUtcDateModified` for optimistic concurrency |
-| `patch_note` | Find-and-replace a piece of a note's content without resending the whole note; optional `expectedUtcDateModified` for optimistic concurrency |
+| `create_note` | Create a new note — accepts markdown (default) or HTML, or `contentFilePath`; returns `utcDateModified` |
+| `update_note` | Update note title, content (markdown or HTML, or `contentFilePath`), or attributes; optional `expectedUtcDateModified` for optimistic concurrency; returns the new `utcDateModified` |
+| `patch_note` | Find-and-replace a piece of a note's content without resending the whole note; optional `expectedUtcDateModified` for optimistic concurrency; returns the new `utcDateModified` |
 | `delete_note` | Delete a note |
 | `delete_attribute` | Delete an attribute (label or relation) from a note by name |
 | `create_backup` | Create a backup of the Trilium database |
@@ -104,6 +105,7 @@ No configuration needed — markdown is the default for both input and output.
 |----------|----------|---------|-------------|
 | `TRILIUM_TOKEN` | Yes | - | Your ETAPI token |
 | `TRILIUM_URL` | No | `http://localhost:37840` | Trilium server URL |
+| `TRILIUM_CONTENT_DIR` | No | - | Folder that `contentFilePath` may read from. If unset, `contentFilePath` is disabled. Paths outside it are rejected after resolving symbolic links |
 
 ## Examples
 

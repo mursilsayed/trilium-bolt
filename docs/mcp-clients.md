@@ -107,6 +107,7 @@ Any MCP client that supports stdio transport can use trilium-bolt. The key detai
 - **Args:** `["-y", "trilium-bolt"]`
 - **Required env:** `TRILIUM_TOKEN` — your ETAPI token
 - **Optional env:** `TRILIUM_URL` — defaults to `http://localhost:37840`
+- **Optional env:** `TRILIUM_CONTENT_DIR` — folder that `contentFilePath` may read from; `contentFilePath` is disabled if unset
 
 ## Troubleshooting
 

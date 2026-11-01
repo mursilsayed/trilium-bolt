@@ -6,6 +6,53 @@ import { z } from 'zod';
 import { marked } from 'marked';
 import { NodeHtmlMarkdown } from 'node-html-markdown';
 import type { TriliumClient } from '../trilium-client.js';
+import { readContentFile } from './content-file.js';
+
+const CONTENT_FORMAT_DESCRIPTION =
+  'Applies to text notes only: "markdown" (default) converts content to HTML before saving, "html" saves it unchanged. Content of every other note type is always saved unchanged.';
+
+const CONTENT_FILE_PATH_DESCRIPTION =
+  'Path of a local UTF-8 file to use as the content, instead of "content". Must be inside the folder set by the TRILIUM_CONTENT_DIR server setting; relative paths are resolved against that folder.';
+
+/** Same rule as get_note: only text notes are stored as HTML. */
+async function toStoredContent(
+  content: string,
+  noteType: string | undefined,
+  contentFormat: 'markdown' | 'html' | undefined
+): Promise<string> {
+  return noteType === 'text' && contentFormat !== 'html'
+    ? marked.parse(content)
+    : content;
+}
+
+async function resolveInputContent(input: {
+  content?: string;
+  contentFilePath?: string;
+}): Promise<string | undefined> {
+  if (input.contentFilePath === undefined) {
+    return input.content;
+  }
+  if (input.content !== undefined) {
+    throw new Error('Provide either "content" or "contentFilePath", not both');
+  }
+  return readContentFile(input.contentFilePath);
+}
+
+/**
+ * The note's utcDateModified after a write. The write has already succeeded here,
+ * so a failed read returns null: reporting an error would invite a retry that
+ * creates a duplicate note or trips the next concurrency check.
+ */
+async function readUtcDateModified(
+  client: TriliumClient,
+  noteId: string
+): Promise<string | null> {
+  try {
+    return (await client.getNote(noteId)).utcDateModified;
+  } catch {
+    return null;
+  }
+}
 
 const attributeSchema = z.object({
   type: z
@@ -33,14 +80,15 @@ export const createNoteSchema = z.object({
     .default('root')
     .describe('ID of the parent note (default: "root" for top-level)'),
   title: z.string().describe('Title of the new note'),
-  content: z.string().describe('Content of the note. Markdown by default — use contentFormat to switch to HTML.'),
+  content: z.string().optional().describe('Content of the note. Required unless contentFilePath is given. For text notes, markdown by default; see contentFormat.'),
+  contentFilePath: z.string().optional().describe(CONTENT_FILE_PATH_DESCRIPTION),
   contentFormat: z
     .enum(['markdown', 'html'])
     .optional()
     .default('markdown')
-    .describe('Format of the content: "markdown" (default) or "html". When "markdown", content is converted to HTML before saving.'),
+    .describe(CONTENT_FORMAT_DESCRIPTION),
   type: z
-    .enum(['text', 'code', 'file', 'image', 'search', 'book', 'relationMap', 'render'])
+    .enum(['text', 'code', 'file', 'image', 'search', 'book', 'relationMap', 'render', 'canvas'])
     .optional()
     .default('text')
     .describe('Type of note (default: "text")'),
@@ -60,14 +108,15 @@ export async function createNote(
   client: TriliumClient,
   input: CreateNoteInput
 ): Promise<string> {
-  const content = input.contentFormat !== 'html'
-    ? await marked.parse(input.content)
-    : input.content;
+  const inputContent = await resolveInputContent(input);
+  if (inputContent === undefined) {
+    throw new Error('One of "content" or "contentFilePath" must be provided');
+  }
 
   const result = await client.createNote({
     parentNoteId: input.parentNoteId,
     title: input.title,
-    content,
+    content: await toStoredContent(inputContent, input.type, input.contentFormat),
     type: input.type,
     mime: input.mime,
   });
@@ -99,6 +148,7 @@ export async function createNote(
       type: result.note.type,
       parentNoteId: input.parentNoteId,
       attributes: createdAttributes,
+      utcDateModified: await readUtcDateModified(client, noteId),
     },
     null,
     2
@@ -108,12 +158,13 @@ export async function createNote(
 export const updateNoteSchema = z.object({
   noteId: z.string().describe('ID of the note to update'),
   title: z.string().optional().describe('New title for the note'),
-  content: z.string().optional().describe('New content for the note. Markdown by default — use contentFormat to switch to HTML.'),
+  content: z.string().optional().describe('New content for the note; an empty string clears it. For text notes, markdown by default; see contentFormat.'),
+  contentFilePath: z.string().optional().describe(CONTENT_FILE_PATH_DESCRIPTION),
   contentFormat: z
     .enum(['markdown', 'html'])
     .optional()
     .default('markdown')
-    .describe('Format of the content: "markdown" (default) or "html". When "markdown", content is converted to HTML before saving.'),
+    .describe(CONTENT_FORMAT_DESCRIPTION),
   attributes: z
     .array(attributeSchema)
     .optional()
@@ -130,17 +181,24 @@ export async function updateNote(
   client: TriliumClient,
   input: UpdateNoteInput
 ): Promise<string> {
-  if (!input.title && !input.content && !input.attributes?.length) {
-    throw new Error('At least one of "title", "content", or "attributes" must be provided');
+  const inputContent = await resolveInputContent(input);
+
+  if (!input.title && inputContent === undefined && !input.attributes?.length) {
+    throw new Error('At least one of "title", "content", "contentFilePath", or "attributes" must be provided');
   }
 
-  if (input.expectedUtcDateModified) {
-    const current = await client.getNote(input.noteId);
-    if (current.utcDateModified !== input.expectedUtcDateModified) {
-      throw new Error(
-        `Note ${input.noteId} changed since last read (expected utcDateModified "${input.expectedUtcDateModified}", found "${current.utcDateModified}"). Re-fetch with get_note before retrying.`
-      );
-    }
+  // The note is needed for the concurrency check, for existing attributes, and to
+  // learn its type when content may need converting.
+  const needsNote =
+    input.expectedUtcDateModified ||
+    input.attributes?.length ||
+    (inputContent !== undefined && input.contentFormat !== 'html');
+  const current = needsNote ? await client.getNote(input.noteId) : undefined;
+
+  if (input.expectedUtcDateModified && current?.utcDateModified !== input.expectedUtcDateModified) {
+    throw new Error(
+      `Note ${input.noteId} changed since last read (expected utcDateModified "${input.expectedUtcDateModified}", found "${current?.utcDateModified}"). Re-fetch with get_note before retrying.`
+    );
   }
 
   const updates: string[] = [];
@@ -150,10 +208,8 @@ export async function updateNote(
     updates.push('title');
   }
 
-  if (input.content) {
-    const content = input.contentFormat !== 'html'
-      ? await marked.parse(input.content)
-      : input.content;
+  if (inputContent !== undefined) {
+    const content = await toStoredContent(inputContent, current?.type, input.contentFormat);
     await client.updateNoteContent(input.noteId, content);
     updates.push('content');
   }
@@ -161,9 +217,7 @@ export async function updateNote(
   const updatedAttributes = [];
 
   if (input.attributes?.length) {
-    // Fetch existing attributes to check for updates vs creates
-    const note = await client.getNote(input.noteId);
-    const existingAttrs = note.attributes;
+    const existingAttrs = current?.attributes ?? [];
 
     for (const attr of input.attributes) {
       const existing = existingAttrs.find(
@@ -193,6 +247,7 @@ export async function updateNote(
       noteId: input.noteId,
       updated: updates,
       attributes: updatedAttributes,
+      utcDateModified: await readUtcDateModified(client, input.noteId),
     },
     null,
     2
@@ -222,7 +277,7 @@ export const patchNoteSchema = z.object({
     .enum(['markdown', 'html'])
     .optional()
     .default('markdown')
-    .describe('Format "search" and "replace" are expressed in: "markdown" (default, matches what get_note returns) or "html" (the raw stored format)'),
+    .describe('Applies to text notes only. Format "search" and "replace" are expressed in: "markdown" (default, matches what get_note returns) or "html" (the raw stored format). Every other note type is always patched in its raw stored content, which is also what get_note returns for it.'),
   expectedUtcDateModified: z
     .string()
     .optional()
@@ -235,20 +290,26 @@ export async function patchNote(
   client: TriliumClient,
   input: PatchNoteInput
 ): Promise<string> {
-  const [rawHtml, current] = await Promise.all([
-    client.getNoteContent(input.noteId),
-    input.expectedUtcDateModified ? client.getNote(input.noteId) : Promise.resolve(undefined),
-  ]);
+  // Check before reading content: a save between the two reads is kept, because
+  // the patch is then applied to the newer content.
+  const current = input.expectedUtcDateModified || input.contentFormat !== 'html'
+    ? await client.getNote(input.noteId)
+    : undefined;
 
-  if (input.expectedUtcDateModified && current && current.utcDateModified !== input.expectedUtcDateModified) {
+  if (input.expectedUtcDateModified && current?.utcDateModified !== input.expectedUtcDateModified) {
     throw new Error(
-      `Note ${input.noteId} changed since last read (expected utcDateModified "${input.expectedUtcDateModified}", found "${current.utcDateModified}"). Re-fetch with get_note before retrying.`
+      `Note ${input.noteId} changed since last read (expected utcDateModified "${input.expectedUtcDateModified}", found "${current?.utcDateModified}"). Re-fetch with get_note before retrying.`
     );
   }
 
-  const workingContent = input.contentFormat === 'html'
-    ? rawHtml
-    : NodeHtmlMarkdown.translate(rawHtml);
+  const storedContent = await client.getNoteContent(input.noteId);
+
+  // Same rule as get_note: only text notes are stored as HTML.
+  const convertsMarkdown = input.contentFormat !== 'html' && current?.type === 'text';
+
+  const workingContent = convertsMarkdown
+    ? NodeHtmlMarkdown.translate(storedContent)
+    : storedContent;
 
   const pattern = new RegExp(
     input.isRegex ? input.search : escapeRegExp(input.search),
@@ -280,11 +341,11 @@ export async function patchNote(
     return seen === targetOccurrence ? input.replace : match;
   });
 
-  const newHtml = input.contentFormat === 'html'
-    ? patchedContent
-    : await marked.parse(patchedContent);
+  const newContent = convertsMarkdown
+    ? await marked.parse(patchedContent)
+    : patchedContent;
 
-  await client.updateNoteContent(input.noteId, newHtml);
+  await client.updateNoteContent(input.noteId, newContent);
 
   return JSON.stringify(
     {
@@ -292,6 +353,7 @@ export async function patchNote(
       noteId: input.noteId,
       matchCount: matches.length,
       occurrenceReplaced: targetOccurrence,
+      utcDateModified: await readUtcDateModified(client, input.noteId),
     },
     null,
     2

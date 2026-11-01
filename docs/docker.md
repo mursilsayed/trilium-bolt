@@ -97,3 +97,7 @@ networks:
 ```
 
 Then use the service name as the hostname: `TRILIUM_URL=http://trilium:8080`
+
+### Using `contentFilePath` in a container
+
+`contentFilePath` is read by trilium-bolt, not by Trilium. If trilium-bolt runs in a container, mount the folder into that container and set `TRILIUM_CONTENT_DIR` to the path inside it.

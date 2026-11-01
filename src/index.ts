@@ -43,7 +43,7 @@ import {
 // Create the MCP server
 const server = new McpServer({
   name: 'trilium-bolt',
-  version: '1.6.2',
+  version: '1.7.0',
 });
 
 // Initialize Trilium client (lazily, on first tool use)
@@ -74,7 +74,7 @@ server.tool(
 
 server.tool(
   'get_note',
-  'Get a note by ID, including its content and metadata. Text note content is returned as markdown for easier reading and processing.',
+  'Get a note by ID, including its content and metadata. Text note content is returned as markdown for easier reading and processing; other types are returned raw. Always reports contentSha256 (lowercase hex SHA-256 of the whole stored content, before any conversion) and contentLength, even with includeContent: false or a partial read. Both are null for a protected note when includeContent is false.',
   getNoteSchema.shape,
   async (args) => {
     try {
@@ -134,7 +134,7 @@ server.tool(
 
 server.tool(
   'create_note',
-  'Create a new note in Trilium. Content can be provided as markdown (default) or HTML via the contentFormat parameter.',
+  'Create a new note in Trilium. Text note content can be provided as markdown (default) or HTML via the contentFormat parameter; content of other note types is stored unchanged. Returns the note\'s utcDateModified.',
   createNoteSchema.shape,
   async (args) => {
     try {
@@ -149,7 +149,7 @@ server.tool(
 
 server.tool(
   'update_note',
-  'Update a note\'s title and/or content. Content can be provided as markdown (default) or HTML via the contentFormat parameter.',
+  'Update a note\'s title and/or content. Text note content can be provided as markdown (default) or HTML via the contentFormat parameter; content of other note types is stored unchanged. Returns the note\'s utcDateModified from after the write.',
   updateNoteSchema.shape,
   async (args) => {
     try {
@@ -164,7 +164,7 @@ server.tool(
 
 server.tool(
   'patch_note',
-  'Find-and-replace a piece of a note\'s content without resending the whole note. Rejects the call if "search" matches zero or more than one location, unless "occurrence" is given to disambiguate.',
+  'Find-and-replace a piece of a note\'s content without resending the whole note. Rejects the call if "search" matches zero or more than one location, unless "occurrence" is given to disambiguate. Returns the note\'s utcDateModified from after the write.',
   patchNoteSchema.shape,
   async (args) => {
     try {

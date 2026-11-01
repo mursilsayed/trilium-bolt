@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import { NodeHtmlMarkdown } from 'node-html-markdown';
 import type { TriliumClient } from '../trilium-client.js';
+import type { Note } from '../types.js';
 
 export const getNoteSchema = z.object({
   noteId: z.string().describe('The ID of the note to retrieve'),
@@ -29,59 +30,65 @@ export const getNoteSchema = z.object({
 
 export type GetNoteInput = z.infer<typeof getNoteSchema>;
 
+function noteMetadata(note: Note) {
+  return {
+    noteId: note.noteId,
+    title: note.title,
+    type: note.type,
+    mime: note.mime,
+    parentNoteIds: note.parentNoteIds,
+    childNoteIds: note.childNoteIds,
+    dateCreated: note.dateCreated,
+    dateModified: note.dateModified,
+    utcDateModified: note.utcDateModified,
+    attributes: note.attributes.map((attr) => ({
+      type: attr.type,
+      name: attr.name,
+      value: attr.value,
+    })),
+  };
+}
+
 export async function getNote(
   client: TriliumClient,
   input: GetNoteInput
 ): Promise<string> {
-  if (input.includeContent) {
-    const note = await client.getNoteWithContent(input.noteId);
-    const fullContent = note.type === 'text' ? NodeHtmlMarkdown.translate(note.content) : note.content;
-
-    const start = input.contentStart ?? 0;
-    const end = input.contentMaxChars !== undefined ? start + input.contentMaxChars : fullContent.length;
-    const slicedContent = fullContent.slice(start, end);
-    const truncated = end < fullContent.length;
-
-    return JSON.stringify(
-      {
-        noteId: note.noteId,
-        title: note.title,
-        type: note.type,
-        mime: note.mime,
-        content: slicedContent,
-        contentFormat: note.type === 'text' ? 'markdown' : 'raw',
-        contentLength: fullContent.length,
-        truncated,
-        ...(truncated ? { nextStart: end } : {}),
-        dateCreated: note.dateCreated,
-        dateModified: note.dateModified,
-        utcDateModified: note.utcDateModified,
-        attributes: note.attributes.map((attr) => ({
-          type: attr.type,
-          name: attr.name,
-          value: attr.value,
-        })),
-      },
-      null,
-      2
-    );
+  if (!input.includeContent) {
+    // ETAPI refuses to read a protected note's content, which would otherwise
+    // turn this metadata-only read into an error.
+    const metadata = await client.getNote(input.noteId);
+    if (metadata.isProtected) {
+      return JSON.stringify(
+        { ...noteMetadata(metadata), contentSha256: null, contentLength: null },
+        null,
+        2
+      );
+    }
   }
 
-  const note = await client.getNote(input.noteId);
+  const note = await client.getNoteWithContent(input.noteId);
+  const fullContent = note.type === 'text' ? NodeHtmlMarkdown.translate(note.content) : note.content;
+  const contentSummary = {
+    contentSha256: note.contentSha256,
+    contentLength: fullContent.length,
+  };
+
+  if (!input.includeContent) {
+    return JSON.stringify({ ...noteMetadata(note), ...contentSummary }, null, 2);
+  }
+
+  const start = input.contentStart ?? 0;
+  const end = input.contentMaxChars !== undefined ? start + input.contentMaxChars : fullContent.length;
+  const truncated = end < fullContent.length;
+
   return JSON.stringify(
     {
-      noteId: note.noteId,
-      title: note.title,
-      type: note.type,
-      mime: note.mime,
-      dateCreated: note.dateCreated,
-      dateModified: note.dateModified,
-      utcDateModified: note.utcDateModified,
-      attributes: note.attributes.map((attr) => ({
-        type: attr.type,
-        name: attr.name,
-        value: attr.value,
-      })),
+      ...noteMetadata(note),
+      ...contentSummary,
+      content: fullContent.slice(start, end),
+      contentFormat: note.type === 'text' ? 'markdown' : 'raw',
+      truncated,
+      ...(truncated ? { nextStart: end } : {}),
     },
     null,
     2

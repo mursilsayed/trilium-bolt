@@ -2,6 +2,7 @@
  * Simple fetch-based ETAPI client for Trilium Notes
  */
 
+import { createHash } from 'node:crypto';
 import type {
   Note,
   NoteWithContent,
@@ -81,11 +82,15 @@ export class TriliumClient {
   /**
    * Search notes using Trilium's search syntax
    */
-  async searchNotes(query: string, limit = 100): Promise<SearchResult[]> {
+  async searchNotes(query: string, limit = 100, includeArchived = false): Promise<SearchResult[]> {
     const params = new URLSearchParams({
       search: query,
       limit: limit.toString(),
     });
+
+    if (includeArchived) {
+      params.set('includeArchivedNotes', 'true');
+    }
 
     const results = await this.request<{ results: SearchResult[] }>(
       'GET',
@@ -103,9 +108,17 @@ export class TriliumClient {
   }
 
   /**
-   * Get a note's content
+   * Get a note's content as text. Unlike response.text(), this keeps a leading
+   * byte order mark, so patching a note can't silently drop it.
    */
   async getNoteContent(noteId: string): Promise<string> {
+    return (await this.getNoteContentBytes(noteId)).toString('utf8');
+  }
+
+  /**
+   * Get a note's stored content as raw bytes
+   */
+  private async getNoteContentBytes(noteId: string): Promise<Buffer> {
     const url = `${this.baseUrl}/etapi/notes/${noteId}/content`;
 
     const response = await fetch(url, {
@@ -119,19 +132,25 @@ export class TriliumClient {
       throw new Error(`Failed to get note content: ${response.statusText}`);
     }
 
-    return response.text();
+    return Buffer.from(await response.arrayBuffer());
   }
 
   /**
-   * Get a note with its content
+   * Get a note with its content and the SHA-256 of the stored bytes.
+   *
+   * Metadata is read before content on purpose. If the note is saved between the
+   * two reads, the caller holds an old utcDateModified with new content, so its next
+   * write is rejected. The other order would let it overwrite the save unnoticed.
    */
   async getNoteWithContent(noteId: string): Promise<NoteWithContent> {
-    const [note, content] = await Promise.all([
-      this.getNote(noteId),
-      this.getNoteContent(noteId),
-    ]);
+    const note = await this.getNote(noteId);
+    const bytes = await this.getNoteContentBytes(noteId);
 
-    return { ...note, content };
+    return {
+      ...note,
+      content: bytes.toString('utf8'),
+      contentSha256: createHash('sha256').update(bytes).digest('hex'),
+    };
   }
 
   /**

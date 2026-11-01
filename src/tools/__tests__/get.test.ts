@@ -138,9 +138,14 @@ describe('getNote', () => {
   });
 
   describe('without content', () => {
-    it('returns metadata only when includeContent is false', async () => {
+    it('leaves content out when includeContent is false, but still reports its hash and length', async () => {
       const client = mockClient({
         getNote: vi.fn().mockResolvedValue(baseNote),
+        getNoteWithContent: vi.fn().mockResolvedValue({
+          ...baseNote,
+          content: '<p>Hello world</p>',
+          contentSha256: 'stored-hash',
+        }),
       });
 
       const result = JSON.parse(await getNote(client, { noteId: 'abc123', includeContent: false }));
@@ -148,6 +153,68 @@ describe('getNote', () => {
       expect(result.title).toBe('Test Note');
       expect(result.content).toBeUndefined();
       expect(result.contentFormat).toBeUndefined();
+      expect(result.truncated).toBeUndefined();
+      expect(result.contentSha256).toBe('stored-hash');
+      expect(result.contentLength).toBe('Hello world'.length);
+    });
+
+    it('returns null hash and length for a protected note, whose content ETAPI will not serve', async () => {
+      const getNoteWithContent = vi.fn().mockRejectedValue(new Error('NOTE_IS_PROTECTED'));
+      const client = mockClient({
+        getNote: vi.fn().mockResolvedValue({ ...baseNote, isProtected: true }),
+        getNoteWithContent,
+      });
+
+      const result = JSON.parse(await getNote(client, { noteId: 'abc123', includeContent: false }));
+      expect(result.title).toBe('Test Note');
+      expect(result.contentSha256).toBeNull();
+      expect(result.contentLength).toBeNull();
+      expect(getNoteWithContent).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('contentSha256', () => {
+    it('describes the whole note when only a slice is returned', async () => {
+      const client = mockClient({
+        getNoteWithContent: vi.fn().mockResolvedValue({
+          ...baseNote,
+          type: 'code',
+          content: 'abcdef',
+          contentSha256: 'whole-note-hash',
+        }),
+      });
+
+      const result = JSON.parse(
+        await getNote(client, { noteId: 'abc123', includeContent: true, contentMaxChars: 2 })
+      );
+      expect(result.content).toBe('ab');
+      expect(result.contentLength).toBe(6);
+      expect(result.contentSha256).toBe('whole-note-hash');
+    });
+  });
+
+  describe('parent and child note IDs', () => {
+    const related = { ...baseNote, parentNoteIds: ['p1'], childNoteIds: ['c1', 'c2'] };
+
+    it('are returned with content', async () => {
+      const client = mockClient({
+        getNoteWithContent: vi.fn().mockResolvedValue({ ...related, content: '<p>x</p>' }),
+      });
+
+      const result = JSON.parse(await getNote(client, { noteId: 'abc123', includeContent: true }));
+      expect(result.parentNoteIds).toEqual(['p1']);
+      expect(result.childNoteIds).toEqual(['c1', 'c2']);
+    });
+
+    it('are returned without content', async () => {
+      const client = mockClient({
+        getNote: vi.fn().mockResolvedValue(related),
+        getNoteWithContent: vi.fn().mockResolvedValue({ ...related, content: '<p>x</p>' }),
+      });
+
+      const result = JSON.parse(await getNote(client, { noteId: 'abc123', includeContent: false }));
+      expect(result.parentNoteIds).toEqual(['p1']);
+      expect(result.childNoteIds).toEqual(['c1', 'c2']);
     });
   });
 
@@ -278,6 +345,7 @@ describe('getNote utcDateModified', () => {
   it('returns utcDateModified for metadata only reads', async () => {
     const client = mockClient({
       getNote: vi.fn().mockResolvedValue(baseNote),
+      getNoteWithContent: vi.fn().mockResolvedValue({ ...baseNote, content: '<p>x</p>' }),
     });
 
     const result = JSON.parse(await getNote(client, { noteId: 'abc123', includeContent: false }));
